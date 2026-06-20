@@ -1133,7 +1133,7 @@ Target audience: ${document.getElementById('gAudience').value || 'not specified'
 Brand message: ${document.getElementById('gMessage').value || 'not specified'}
 Materials already used (avoid repeating): ${document.getElementById('gPrior').value || 'none specified'}`;
   try{
-    const raw = await callGemini(system, userMsg, 1500);
+    const raw = await callGemini(system, userMsg, 4000);
     const json = parseJsonLoose(raw);
     document.getElementById('gimmickResultBox').innerHTML = `<div class="ai-result">${
       (json.ideas||[]).map(i=>`<div style="margin-bottom:12px"><strong>${escapeHtml(i.idea)}</strong><br><span class="muted">${escapeHtml(i.rationale)}</span><br><span class="mono" style="font-size:12px">${escapeHtml(i.estCostRangeEGP||'')}</span><br><span style="font-size:11.5px; color:var(--amber)">${escapeHtml(i.complianceNote||'')}</span></div>`).join('')
