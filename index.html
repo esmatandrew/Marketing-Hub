@@ -1238,13 +1238,7 @@ async function runMarketAnalysis(){
   const btn = document.getElementById('mRunBtn');
   btn.disabled=true; btn.innerHTML='<span class="spin"></span> Analyzing...';
   const sample = uploadedRows.slice(0,80);
-  const system = `You are a pharmaceutical market analyst covering the Egyptian market. You will receive a sample of rows from a competitor/market Excel file (the user's actual column names — infer their meaning). Produce ONLY valid JSON with this schema:
-{
-  "summary": "3-5 sentence summary of what the data shows",
-  "competitiveGaps": "2-4 sentences on where this drug has white space vs competitors, ideally by region/cluster if the data allows",
-  "forecast": "3-5 sentence demand forecast for next year, with reasoning",
-  "recommendedClusterPriority": ["CAIRO or ALEX or DELTA or UPPER, ranked highest priority first - use these exact codes"]
-}`;
+  const system = `You are a pharmaceutical market analyst covering the Egyptian market. You will receive a sample of rows from a competitor/market Excel file. Produce ONLY valid, perfectly formatted JSON. Do NOT use unescaped double quotes or raw newlines inside your text strings. Use standard spacing. Your response must exactly match this schema: {"summary": "3-5 sentence summary", "competitiveGaps": "2-4 sentences on gaps", "forecast": "3-5 sentence forecast", "recommendedClusterPriority": ["CAIRO", "ALEX", "DELTA", "UPPER"]}`;
   const userMsg = `Drug being analyzed: ${drugName(drugId)}
 File: ${uploadedFileName}, total rows: ${uploadedRows.length} (showing sample of ${sample.length})
 Data sample (JSON):
