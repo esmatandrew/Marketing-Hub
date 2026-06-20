@@ -1126,7 +1126,7 @@ async function runGimmickIdeas(){
   const drugId = document.getElementById('gDrug').value;
   if(!drugId){ toast('Select a drug.'); return; }
   btn.disabled=true; btn.innerHTML='<span class="spin"></span> Thinking...';
-  const system = `You are a pharmaceutical promotional-materials strategist working under standard pharma marketing compliance (no patient-directed claims, no direct payments framed as gifts of high value, materials must be modest and educational/branding in nature). Respond with ONLY valid JSON: {"ideas":[{"idea":"name","rationale":"why it fits","estCostRangeEGP":"e.g. 20,000 - 40,000","complianceNote":"short note"}]} Suggest 5-7 ideas.`;
+  const system = `You are a pharmaceutical promotional-materials strategist working under standard pharma marketing compliance. You must respond with ONLY valid, perfectly formatted JSON. Do not include markdown, backticks, or conversational text. Do NOT use unescaped double quotes inside your text strings. Your response must exactly match this structure: {"ideas":[{"idea":"name","rationale":"why it fits","estCostRangeEGP":"e.g. 20,000 - 40,000","complianceNote":"short note"}]}`;
   const userMsg = `Drug: ${drugName(drugId)}
 Budget available: ${document.getElementById('gBudget').value || 'not specified'} EGP
 Target audience: ${document.getElementById('gAudience').value || 'not specified'}
