@@ -775,16 +775,16 @@ async function runWizard(drugId){
 
   btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Thinking...';
   const d = STATE.drugs.find(x=>x.id===drugId);
-  const system = `You are a senior pharmaceutical marketing strategist in Egypt. You design annual activity plans for product managers, allocating a fixed budget across four geographic clusters (Cairo, Alexandria, Delta, Upper Egypt). Always respond with ONLY valid JSON, no markdown, no commentary, matching exactly this schema:
+  const system = `You are a senior pharmaceutical marketing strategist in Egypt. You design annual activity plans for product managers, allocating a fixed budget across four geographic clusters (Cairo, Alexandria, Delta, Upper Egypt). Always respond with ONLY valid, perfectly formatted JSON. Do not include markdown, backticks, or commentary. Do NOT use unescaped double quotes or raw newlines inside text strings. Match exactly this schema:
 {
   "rationale": "2-4 sentence strategic summary",
   "clusters": {
     "CAIRO": {"budgetPct": number, "activities": [{"type": "string (one of: Round Table, Lecture / CME, Congress / Conference, Webinar, Advisory Board, 1:1 Doctor Visit, Other)", "count": number, "estCostEach": number, "rationale": "short reason"}]},
-    "ALEX": {"budgetPct": number, "activities": [...]},
-    "DELTA": {"budgetPct": number, "activities": [...]},
-    "UPPER": {"budgetPct": number, "activities": [...]}
+    "ALEX": {"budgetPct": number, "activities": []},
+    "DELTA": {"budgetPct": number, "activities": []},
+    "UPPER": {"budgetPct": number, "activities": []}
   },
-  "quarterlyTimeline": [{"quarter":"Q1","focus":"short text"},{"quarter":"Q2","focus":"..."},{"quarter":"Q3","focus":"..."},{"quarter":"Q4","focus":"..."}]
+  "quarterlyTimeline": [{"quarter":"Q1","focus":"short text"},{"quarter":"Q2","focus":"text"},{"quarter":"Q3","focus":"text"},{"quarter":"Q4","focus":"text"}]
 }
 budgetPct values across the 4 clusters must sum to 100. Each cluster's activities' (count * estCostEach) should roughly add up to budgetPct% of the total budget. Be realistic about Egyptian pharma field-activity costs in EGP.`;
   const userMsg = `Drug: ${d.name} (${d.stage||'stage unspecified'})
@@ -796,7 +796,7 @@ Additional context: ${context || 'none provided'}
 Produce the JSON plan now.`;
 
   try{
-    const raw = await callGemini(system, userMsg, 2500);
+    const raw = await callGemini(system, userMsg, 4000);
     const json = parseJsonLoose(raw);
     window._pendingPlan = { drugId, totalBudget:budget, priority, clusterTargets:targets, competitorLevels:comp, context, ...json };
     renderPlanPreview(window._pendingPlan, true);
