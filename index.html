@@ -764,12 +764,28 @@ function openDrugForm(id){
   `);
 }
 async function saveDrug(id){
-  const name = document.getElementById('fDrugName').value.trim();
-  if(!name){ toast('Please enter a drug name.'); return; }
-  const payload = { pmId:CURRENT_USER.uid, year:STATE.year, name, stage:document.getElementById('fDrugStage').value, notes:document.getElementById('fDrugNotes').value.trim() };
-  if(id){ await fb.db.collection('drugs').doc(id).update(payload); }
-  else { payload.createdAt=Date.now(); const ref = await fb.db.collection('drugs').add(payload); id=ref.id; }
-  await loadAllData(); closeModal(); toast('Drug saved.'); renderDrugs();
+  try {
+    const name = document.getElementById('fDrugName').value.trim();
+    if(!name){ toast('Please enter a drug name.'); return; }
+    
+    const payload = { pmId:CURRENT_USER.uid, year:STATE.year, name, stage:document.getElementById('fDrugStage').value, notes:document.getElementById('fDrugNotes').value.trim() };
+    
+    if(id){ 
+      await fb.db.collection('drugs').doc(id).update(payload); 
+    } else { 
+      payload.createdAt=Date.now(); 
+      const ref = await fb.db.collection('drugs').add(payload); 
+      id=ref.id; 
+    }
+    
+    await loadAllData(); 
+    closeModal(); 
+    toast('Drug saved.'); 
+    renderDrugs();
+  } catch(error) {
+    console.error("Firebase Error: ", error);
+    toast('Failed to save: ' + error.message);
+  }
 }
 
 function openWizard(drugId){
