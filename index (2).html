@@ -1,0 +1,1406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cluster — PM Planning System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#F5F7F8;
+  --surface:#FFFFFF;
+  --ink:#16232B;
+  --ink-soft:#52666E;
+  --ink-faint:#8A9BA2;
+  --primary:#0F4C5C;
+  --primary-light:#15677C;
+  --accent:#2BA89B;
+  --amber:#C8862A;
+  --danger:#C0443A;
+  --border:#DEE5E7;
+  --c-cairo:#2BA89B;
+  --c-alex:#3D7FB5;
+  --c-delta:#7A9E3D;
+  --c-upper:#B5793D;
+  --radius:10px;
+  --shadow:0 1px 2px rgba(16,36,43,.06), 0 4px 14px rgba(16,36,43,.05);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:'Inter',sans-serif; font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:'Space Grotesk',sans-serif; font-weight:600; margin:0 0 4px; color:var(--ink)}
+.mono{font-family:'IBM Plex Mono',monospace}
+a{color:var(--primary-light)}
+button{font-family:inherit; cursor:pointer}
+input,select,textarea{font-family:inherit; font-size:14px}
+
+/* ---------- Layout ---------- */
+#authScreen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(135deg, #0F4C5C, #16232B); }
+.auth-card { display: flex; width: 800px; max-width: 100%; background: var(--surface); border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
+.auth-card-left { flex: 1; background: var(--primary); color: white; padding: 48px; display: flex; flex-direction: column; justify-content: center; }
+.auth-card-right { flex: 1; padding: 48px; }
+.auth-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
+.auth-logo .mark { width: 42px; height: 42px; border-radius: 10px; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; }
+.auth-logo .mark svg { width: 22px; height: 22px; }
+.auth-logo .name { font-family: 'Space Grotesk'; font-weight: 700; font-size: 24px; color: white; }
+.auth-logo .sub { font-size: 12px; color: #9FC1C7; letter-spacing: .05em; text-transform: uppercase; }
+
+#app{display:none; min-height:100vh}
+#app.shown{display:flex}
+.sidebar{
+  width:230px; flex-shrink:0; background:var(--primary); color:#E8F1F2;
+  display:flex; flex-direction:column; padding:20px 0;
+}
+.sidebar .brand{display:flex; align-items:center; gap:10px; padding:0 20px 22px; border-bottom:1px solid rgba(255,255,255,.12); margin-bottom:14px}
+.sidebar .brand .mark{width:30px;height:30px;border-radius:7px;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center}
+.sidebar .brand .mark svg{width:16px;height:16px}
+.sidebar .brand .name{font-family:'Space Grotesk'; font-weight:700; font-size:16px; color:#fff}
+.sidebar .brand .sub{font-size:10px; color:#9FC1C7; letter-spacing:.05em; text-transform:uppercase}
+.navgroup{padding:0 10px; margin-bottom:6px}
+.navitem{
+  display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:8px; color:#C7DEE1;
+  font-size:13.5px; font-weight:500; cursor:pointer; margin-bottom:2px; transition:background .12s;
+}
+.navitem svg{width:16px;height:16px; flex-shrink:0; opacity:.85}
+.navitem:hover{background:rgba(255,255,255,.08); color:#fff}
+.navitem.active{background:rgba(255,255,255,.16); color:#fff}
+.sidebar .spacer{flex:1}
+.sidebar .pmbox{margin:10px 12px 0; padding:12px; border-top:1px solid rgba(255,255,255,.12); padding-top:14px}
+.sidebar .pmbox .pmname{font-weight:600; color:#fff; font-size:13px}
+.sidebar .pmbox .pmrole{font-size:11px; color:#9FC1C7; margin-bottom:8px}
+.sidebar .signout{font-size:12px; color:#9FC1C7; cursor:pointer; text-decoration:underline}
+
+.main{flex:1; min-width:0; display:flex; flex-direction:column}
+.topbar{
+  height:60px; background:var(--surface); border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between; padding:0 24px; flex-shrink:0;
+}
+.topbar h1{font-size:17px}
+.topbar .ctrls{display:flex; align-items:center; gap:14px}
+.yearpicker select{border:1px solid var(--border); border-radius:7px; padding:6px 10px; background:#fff; color:var(--ink); font-weight:600}
+.budgetpill{
+  display:flex; align-items:center; gap:8px; background:var(--bg); border:1px solid var(--border);
+  border-radius:20px; padding:6px 14px; font-size:12.5px;
+}
+.budgetpill .lbl{color:var(--ink-faint)}
+.budgetpill .val{font-family:'IBM Plex Mono'; font-weight:600}
+.content{flex:1; overflow-y:auto; padding:26px 28px 60px}
+.pagehead{display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:18px; gap:16px; flex-wrap:wrap}
+.pagehead p{color:var(--ink-soft); margin:4px 0 0; font-size:13px; max-width:560px}
+
+/* ---------- Components ---------- */
+.btn{
+  display:inline-flex; align-items:center; gap:6px; border:1px solid transparent; border-radius:8px;
+  padding:9px 16px; font-size:13px; font-weight:600; background:var(--primary); color:#fff; transition:filter .1s;
+}
+.btn:hover{filter:brightness(1.08)}
+.btn.secondary{background:#fff; color:var(--primary); border-color:var(--border)}
+.btn.ghost{background:transparent; color:var(--ink-soft); border-color:var(--border)}
+.btn.danger{background:#fff; color:var(--danger); border-color:#ECC; }
+.btn.accent{background:var(--accent)}
+.btn.sm{padding:6px 11px; font-size:12px}
+.btn:disabled{opacity:.5; cursor:not-allowed}
+
+.card{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px; box-shadow:var(--shadow)}
+.grid{display:grid; gap:16px}
+.grid.cols-2{grid-template-columns:1fr 1fr}
+.grid.cols-3{grid-template-columns:repeat(3,1fr)}
+.grid.cols-4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:1000px){.grid.cols-3,.grid.cols-4{grid-template-columns:repeat(2,1fr)}}
+
+.kpi{padding:16px 18px}
+.kpi .lbl{font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); font-weight:600}
+.kpi .val{font-family:'IBM Plex Mono'; font-size:24px; font-weight:600; margin-top:6px}
+.kpi .sub{font-size:12px; color:var(--ink-soft); margin-top:3px}
+.progress{height:6px; background:var(--bg); border-radius:4px; overflow:hidden; margin-top:10px}
+.progress > div{height:100%; background:var(--accent)}
+.progress.warn > div{background:var(--amber)}
+.progress.over > div{background:var(--danger)}
+
+table{width:100%; border-collapse:collapse; font-size:13px}
+thead th{text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); font-weight:600; padding:8px 10px; border-bottom:1px solid var(--border)}
+tbody td{padding:10px; border-bottom:1px solid var(--bg); vertical-align:top}
+tbody tr:hover{background:#FAFCFC}
+.tbl-actions{display:flex; gap:6px; justify-content:flex-end}
+.empty{padding:36px 20px; text-align:center; color:var(--ink-faint)}
+.empty .big{font-size:14px; color:var(--ink-soft); margin-bottom:4px; font-weight:600}
+
+.badge{display:inline-flex; align-items:center; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:600}
+.badge.cairo{background:rgba(43,168,155,.12); color:var(--c-cairo)}
+.badge.alex{background:rgba(61,127,181,.12); color:var(--c-alex)}
+.badge.delta{background:rgba(122,158,61,.12); color:var(--c-delta)}
+.badge.upper{background:rgba(181,121,61,.12); color:var(--c-upper)}
+.badge.tierA{background:rgba(192,68,58,.1); color:var(--danger)}
+.badge.tierB{background:rgba(200,134,42,.1); color:var(--amber)}
+.badge.tierC{background:rgba(82,102,110,.1); color:var(--ink-soft)}
+.badge.status{background:var(--bg); color:var(--ink-soft)}
+
+.tabs{display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:18px}
+.tab{padding:9px 14px; font-size:13px; font-weight:600; color:var(--ink-faint); cursor:pointer; border-bottom:2px solid transparent}
+.tab.active{color:var(--primary); border-color:var(--primary)}
+
+.field{margin-bottom:14px}
+.field label{display:block; font-size:12.5px; font-weight:600; color:var(--ink-soft); margin-bottom:5px}
+.field .hint{font-size:11.5px; color:var(--ink-faint); margin-top:4px}
+.field input[type=text],.field input[type=number],.field input[type=date],.field input[type=email],.field input[type=password],.field select,.field textarea{
+  width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:7px; background:#fff; color:var(--ink);
+}
+.field textarea{resize:vertical; min-height:64px}
+.field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--accent); outline-offset:1px; border-color:var(--accent)}
+.field-row{display:grid; grid-template-columns:repeat(4,1fr); gap:10px}
+.field-row.two{grid-template-columns:1fr 1fr}
+
+/* Modal */
+#modalOverlay{position:fixed; inset:0; background:rgba(16,36,43,.45); display:none; align-items:flex-start; justify-content:center; padding:5vh 20px; overflow-y:auto; z-index:200}
+#modalOverlay.open{display:flex}
+.modal{background:#fff; border-radius:12px; width:560px; max-width:100%; box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.modal.wide{width:740px}
+.modal-head{display:flex; align-items:center; justify-content:space-between; padding:18px 22px; border-bottom:1px solid var(--border)}
+.modal-head h3{font-size:16px}
+.modal-close{background:none; border:none; font-size:20px; color:var(--ink-faint); line-height:1; padding:4px}
+.modal-body{padding:20px 22px; max-height:70vh; overflow-y:auto}
+.modal-foot{display:flex; justify-content:flex-end; gap:8px; padding:16px 22px; border-top:1px solid var(--border)}
+
+/* Toast */
+#toast{position:fixed; bottom:22px; right:22px; background:var(--ink); color:#fff; padding:12px 18px; border-radius:8px; font-size:13px; opacity:0; transform:translateY(8px); transition:all .25s; pointer-events:none; z-index:300}
+#toast.show{opacity:1; transform:translateY(0)}
+
+/* Cluster bar (signature element) */
+.clusterbar{display:flex; gap:3px; height:34px; border-radius:7px; overflow:hidden}
+.clusterbar .seg{flex:1; position:relative; background:var(--bg); overflow:hidden}
+.clusterbar .seg .fill{position:absolute; bottom:0; left:0; right:0}
+.clusterbar .seg .lbl{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:700; color:#fff; mix-blend-mode:difference; z-index:2}
+.clusterlegend{display:flex; gap:16px; margin-top:10px; flex-wrap:wrap}
+.clusterlegend .item{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-soft)}
+.clusterlegend .dot{width:8px; height:8px; border-radius:50%}
+
+.spin{display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.aibox{background:linear-gradient(135deg,#0F4C5C,#15677C); color:#fff; border-radius:10px; padding:18px 20px; margin-bottom:18px}
+.aibox h4{color:#fff; font-size:14px}
+.aibox p{color:#CDE7EA; font-size:12.5px; margin:4px 0 12px}
+.ai-result{background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:14px 16px; margin-top:14px; font-size:13px; white-space:pre-wrap}
+.note{font-size:12px; background:#FFF8EC; border:1px solid #F0DDB3; color:#7A5A14; padding:10px 12px; border-radius:8px; margin-bottom:14px}
+.muted{color:var(--ink-faint)}
+.right{text-align:right}
+.flex{display:flex; align-items:center}
+.gap8{gap:8px}
+.mt8{margin-top:8px} .mt16{margin-top:16px} .mb16{margin-bottom:16px}
+</style>
+</head>
+<body>
+
+<div id="authScreen">
+  <div class="auth-card">
+    
+    <!-- Custom Left Panel -->
+    <div class="auth-card-left">
+      <div class="auth-logo">
+        <div class="mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2 L12 12 M12 12 L20 6 M12 12 L20 18 M12 12 L4 6 M12 12 L4 18"/></svg>
+        </div>
+        <div>
+          <div class="name">Cluster</div>
+          <div class="sub">PM Planning System</div>
+        </div>
+      </div>
+      <h2 style="color: white; margin-top: 20px;">Welcome Back.</h2>
+      <p style="color: #9FC1C7; font-size: 14px; margin-top: 10px;">Sign in to access your annual portfolio, manage doctor coverage, and run AI market analytics.</p>
+    </div>
+
+    <!-- Right Panel (The original logic, restyled) -->
+    <div class="auth-card-right">
+      <div id="setupPane">
+        <h3 style="font-size:18px; margin-bottom: 8px;">First-time setup</h3>
+        <p class="muted" style="font-size:12.5px; margin-top:2px">Paste your Firebase project config and your Gemini API key.</p>
+        <div class="field mt16">
+          <label>Firebase config</label>
+          <textarea id="setupFbConfig" placeholder='{"apiKey":"..."}' style="min-height:90px; font-family:'IBM Plex Mono'; font-size:12px"></textarea>
+        </div>
+        <div class="field">
+          <label>Gemini API key</label>
+          <input type="password" id="setupApiKey" placeholder="AIzaSy...">
+        </div>
+        <button class="btn" style="width:100%; justify-content:center; padding: 12px;" onclick="saveSetup()">Save & continue</button>
+      </div>
+
+      <div id="loginPane" style="display:none">
+        <h3 style="font-size: 20px; margin-bottom: 24px;">Sign In</h3>
+        <div class="tabs" style="margin-bottom:18px">
+          <div class="tab active" id="tabSignin" onclick="switchAuthTab('signin')">Sign in</div>
+          <div class="tab" id="tabSignup" onclick="switchAuthTab('signup')">Create account</div>
+        </div>
+        <div class="field" id="nameField" style="display:none">
+          <label>Your name</label>
+          <input type="text" id="authName" placeholder="e.g. Dr. Andrew Fakhry">
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="authEmail" placeholder="name@company.com">
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="authPassword" placeholder="••••••••">
+        </div>
+        <div id="authError" style="color:var(--danger); font-size:12.5px; margin-bottom:10px; display:none"></div>
+        <button class="btn" id="authSubmitBtn" style="width:100%; justify-content:center; padding: 12px; margin-top: 10px;" onclick="submitAuth()">Sign in</button>
+        <p class="muted" style="font-size:11.5px; margin-top:20px; cursor:pointer; text-decoration:underline; text-align: center;" onclick="backToSetup()">Edit Firebase / API key setup</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="app">
+  <div class="sidebar">
+    <div class="brand">
+      <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2 L12 12 M12 12 L20 6 M12 12 L20 18 M12 12 L4 6 M12 12 L4 18"/></svg></div>
+      <div><div class="name">Cluster</div><div class="sub">PM Planning</div></div>
+    </div>
+    <div class="navgroup">
+      <div class="navitem" data-page="dashboard" onclick="goTo('dashboard')">&#9633; <span>Dashboard</span></div>
+      <div class="navitem" data-page="drugs" onclick="goTo('drugs')">&#9673; <span>Drugs &amp; Plans</span></div>
+      <div class="navitem" data-page="doctors" onclick="goTo('doctors')">&#9877; <span>Doctors &amp; Visits</span></div>
+      <div class="navitem" data-page="events" onclick="goTo('events')">&#9873; <span>Events</span></div>
+      <div class="navitem" data-page="gimmicks" onclick="goTo('gimmicks')">&#9670; <span>Gimmicks &amp; Procurement</span></div>
+      <div class="navitem" data-page="market" onclick="goTo('market')">&#9650; <span>Market &amp; Forecast</span></div>
+      <div class="navitem" data-page="portfolio" onclick="goTo('portfolio')">&#9776; <span>Portfolio Archive</span></div>
+      <div class="navitem" data-page="settings" onclick="goTo('settings')">&#9881; <span>Settings</span></div>
+    </div>
+    <div class="spacer"></div>
+    <div class="pmbox">
+      <div class="pmname" id="sbPmName">—</div>
+      <div class="pmrole">Product Manager</div>
+      <div class="signout" onclick="doSignOut()">Sign out</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <h1 id="pageTitle">Dashboard</h1>
+      <div class="ctrls">
+        <div class="budgetpill"><span class="lbl">Budget left</span><span class="val mono" id="topBudgetLeft">—</span></div>
+        <div class="yearpicker"><select id="yearSelect" onchange="onYearChange()"></select></div>
+      </div>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<div id="modalOverlay">
+  <div class="modal" id="modalBox">
+    <div class="modal-head"><h3 id="modalTitle">Title</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot" id="modalFoot"></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+/* =====================================================================
+   CONSTANTS
+===================================================================== */
+const CLUSTERS = [
+  {key:'CAIRO', label:'Cairo', color:'var(--c-cairo)', hex:'#2BA89B', badge:'cairo'},
+  {key:'ALEX', label:'Alexandria', color:'var(--c-alex)', hex:'#3D7FB5', badge:'alex'},
+  {key:'DELTA', label:'Delta', color:'var(--c-delta)', hex:'#7A9E3D', badge:'delta'},
+  {key:'UPPER', label:'Upper Egypt', color:'var(--c-upper)', hex:'#B5793D', badge:'upper'}
+];
+const clusterByKey = k => CLUSTERS.find(c=>c.key===k) || CLUSTERS[0];
+
+const EVENT_TYPES = ['Round Table','Lecture / CME','Congress / Conference','Webinar','Advisory Board','1:1 Doctor Visit','Other'];
+const STAGES = ['Pre-launch','Launch','Growth','Mature','Decline / Defend'];
+const PRIORITIES = ['Share of voice','KOL development','New doctor acquisition','Launch awareness','Defend market share'];
+const TIERS = ['A','B','C'];
+const COMPETITOR_LEVELS = ['Low','Moderate','High','Very high'];
+const MODEL = 'gemini-3.5-flash';
+
+/* =====================================================================
+   STATE
+===================================================================== */
+let fb = { app:null, auth:null, db:null };
+let CURRENT_USER = null; // {uid, email, name}
+let STATE = {
+  year: 2026,
+  drugs: [], doctors: [], visits: [], events: [], gimmicks: [], plans: [], markets: [], budget: 0,
+  page: 'dashboard'
+};
+
+/* =====================================================================
+   BOOT
+===================================================================== */
+window.addEventListener('DOMContentLoaded', boot);
+
+function boot(){
+  const cfg = localStorage.getItem('cluster_fbConfig');
+  const key = localStorage.getItem('cluster_apiKey');
+  if(cfg && key){
+    initFirebase(JSON.parse(cfg));
+    document.getElementById('setupPane').style.display='none';
+    document.getElementById('loginPane').style.display='block';
+  } else {
+    document.getElementById('setupPane').style.display='block';
+    document.getElementById('loginPane').style.display='none';
+  }
+  // populate year select
+  const ys = document.getElementById('yearSelect');
+  const thisYear = 2026;
+  for(let y=thisYear-1; y<=thisYear+1; y++){
+    const o = document.createElement('option'); o.value=y; o.textContent=y; ys.appendChild(o);
+  }
+  STATE.year = thisYear;
+  ys.value = thisYear;
+}
+
+function saveSetup(){
+  const raw = document.getElementById('setupFbConfig').value.trim();
+  const key = document.getElementById('setupApiKey').value.trim();
+  if(!raw || !key){ toast('Please fill in both fields.'); return; }
+  let cfg;
+  try{ cfg = JSON.parse(raw); } catch(e){ toast('That Firebase config is not valid JSON — copy it exactly from your project settings.'); return; }
+  localStorage.setItem('cluster_fbConfig', JSON.stringify(cfg));
+  localStorage.setItem('cluster_apiKey', key);
+  initFirebase(cfg);
+  document.getElementById('setupPane').style.display='none';
+  document.getElementById('loginPane').style.display='block';
+  toast('Setup saved on this device.');
+}
+
+function backToSetup(){
+  document.getElementById('setupPane').style.display='block';
+  document.getElementById('loginPane').style.display='none';
+  const cfg = localStorage.getItem('cluster_fbConfig');
+  if(cfg) document.getElementById('setupFbConfig').value = JSON.stringify(JSON.parse(cfg), null, 2);
+  const key = localStorage.getItem('cluster_apiKey');
+  if(key) document.getElementById('setupApiKey').value = key;
+}
+
+function initFirebase(cfg){
+  try{
+    fb.app = firebase.apps.length ? firebase.app() : firebase.initializeApp(cfg);
+    fb.auth = firebase.auth();
+    fb.db = firebase.firestore();
+    fb.auth.onAuthStateChanged(onAuthChange);
+  }catch(e){ console.error(e); toast('Could not initialize Firebase — check your config.'); }
+}
+
+/* =====================================================================
+   AUTH
+===================================================================== */
+let authMode = 'signin';
+function switchAuthTab(mode){
+  authMode = mode;
+  document.getElementById('tabSignin').classList.toggle('active', mode==='signin');
+  document.getElementById('tabSignup').classList.toggle('active', mode==='signup');
+  document.getElementById('nameField').style.display = mode==='signup' ? 'block':'none';
+  document.getElementById('authSubmitBtn').textContent = mode==='signup' ? 'Create account' : 'Sign in';
+  document.getElementById('authError').style.display='none';
+}
+
+async function submitAuth(){
+  const email = document.getElementById('authEmail').value.trim();
+  const pass = document.getElementById('authPassword').value;
+  const errEl = document.getElementById('authError');
+  errEl.style.display='none';
+  if(!fb.auth){ toast('Finish setup first.'); return; }
+  try{
+    if(authMode==='signup'){
+      const name = document.getElementById('authName').value.trim();
+      if(!name){ errEl.textContent='Please enter your name.'; errEl.style.display='block'; return; }
+      const cred = await fb.auth.createUserWithEmailAndPassword(email, pass);
+      await cred.user.updateProfile({displayName:name});
+      await fb.db.collection('pms').doc(cred.user.uid).set({name, email, createdAt:Date.now()});
+    } else {
+      await fb.auth.signInWithEmailAndPassword(email, pass);
+    }
+  }catch(e){
+    errEl.textContent = e.message.replace('Firebase: ','');
+    errEl.style.display='block';
+  }
+}
+
+function doSignOut(){ fb.auth.signOut(); }
+
+async function onAuthChange(user){
+  if(user){
+    let pmDoc = await fb.db.collection('pms').doc(user.uid).get();
+    let name = user.displayName || (pmDoc.exists ? pmDoc.data().name : user.email);
+    CURRENT_USER = {uid:user.uid, email:user.email, name};
+    document.getElementById('authScreen').style.display='none';
+    document.getElementById('app').classList.add('shown');
+    document.getElementById('sbPmName').textContent = name;
+    await loadAllData();
+    goTo('dashboard');
+  } else {
+    CURRENT_USER = null;
+    document.getElementById('app').classList.remove('shown');
+    document.getElementById('authScreen').style.display='flex';
+  }
+}
+
+/* =====================================================================
+   DATA LAYER  (simple: fetch each collection filtered to this PM, re-fetch on demand)
+===================================================================== */
+async function loadAllData(){
+  const uid = CURRENT_USER.uid;
+  const [drugsSnap, doctorsSnap, visitsSnap, eventsSnap, gimmicksSnap, plansSnap, marketsSnap, budgetDoc] = await Promise.all([
+    fb.db.collection('drugs').where('pmId','==',uid).get(),
+    fb.db.collection('doctors').where('pmId','==',uid).get(),
+    fb.db.collection('visits').where('pmId','==',uid).get(),
+    fb.db.collection('events').where('pmId','==',uid).get(),
+    fb.db.collection('gimmicks').where('pmId','==',uid).get(),
+    fb.db.collection('plans').where('pmId','==',uid).get(),
+    fb.db.collection('marketAnalyses').where('pmId','==',uid).get(),
+    fb.db.collection('pmBudgets').doc(uid+'_'+STATE.year).get()
+  ]);
+  STATE.drugs = drugsSnap.docs.map(d=>({id:d.id,...d.data()}));
+  STATE.doctors = doctorsSnap.docs.map(d=>({id:d.id,...d.data()}));
+  STATE.visits = visitsSnap.docs.map(d=>({id:d.id,...d.data()}));
+  STATE.events = eventsSnap.docs.map(d=>({id:d.id,...d.data()}));
+  STATE.gimmicks = gimmicksSnap.docs.map(d=>({id:d.id,...d.data()}));
+  STATE.plans = plansSnap.docs.map(d=>({id:d.id,...d.data()}));
+  STATE.markets = marketsSnap.docs.map(d=>({id:d.id,...d.data()}));
+  STATE.budget = budgetDoc.exists ? budgetDoc.data().totalBudget : 0;
+  updateTopBudget();
+}
+
+async function onYearChange(){
+  STATE.year = parseInt(document.getElementById('yearSelect').value, 10);
+  await loadAllData();
+  render();
+}
+
+function drugsThisYear(){ return STATE.drugs.filter(d=>d.year===STATE.year); }
+function eventsThisYear(){ return STATE.events.filter(e=>e.year===STATE.year); }
+function gimmicksThisYear(){ return STATE.gimmicks.filter(g=>g.year===STATE.year); }
+function marketsThisYear(){ return STATE.markets.filter(m=>m.year===STATE.year); }
+function planFor(drugId){ return STATE.plans.find(p=>p.drugId===drugId && p.year===STATE.year); }
+function drugName(id){ const d=STATE.drugs.find(x=>x.id===id); return d?d.name:'—'; }
+
+function totalSpent(){
+  const evs = eventsThisYear().reduce((s,e)=>s+(Number(e.cost)||0),0);
+  const gms = gimmicksThisYear().reduce((s,g)=>s+(Number(g.totalCost)||0),0);
+  return evs+gms;
+}
+function updateTopBudget(){
+  const left = (STATE.budget||0) - totalSpent();
+  document.getElementById('topBudgetLeft').textContent = fmtMoney(left);
+}
+
+/* =====================================================================
+   GENERIC HELPERS
+===================================================================== */
+function fmtMoney(n){ n = Number(n)||0; return Math.round(n).toLocaleString('en-US') + ' EGP'; }
+function fmtDate(d){ if(!d) return '—'; return new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function toast(msg){
+  const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(window._toastT); window._toastT = setTimeout(()=>t.classList.remove('show'), 3200);
+}
+function openModal(title, bodyHtml, footHtml, wide){
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = bodyHtml;
+  document.getElementById('modalFoot').innerHTML = footHtml || '';
+  document.getElementById('modalBox').className = 'modal' + (wide?' wide':'');
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal(){ document.getElementById('modalOverlay').classList.remove('open'); }
+function escapeHtml(s){ return (s||'').toString().replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function clusterOptions(selected){
+  return CLUSTERS.map(c=>`<option value="${c.key}" ${selected===c.key?'selected':''}>${c.label}</option>`).join('');
+}
+function drugOptions(selected){
+  const list = drugsThisYear();
+  if(!list.length) return '<option value="">No drugs added yet — add one first</option>';
+  return list.map(d=>`<option value="${d.id}" ${selected===d.id?'selected':''}>${escapeHtml(d.name)}</option>`).join('');
+}
+
+/* =====================================================================
+   ROUTER / NAV
+===================================================================== */
+const PAGE_TITLES = {
+  dashboard:'Dashboard', drugs:'Drugs & Annual Plans', doctors:'Doctors & Visit Coverage',
+  events:'Events', gimmicks:'Gimmicks & Procurement', market:'Market Intelligence & Forecast',
+  portfolio:'Portfolio Archive', settings:'Settings'
+};
+function goTo(page){
+  STATE.page = page;
+  document.querySelectorAll('.navitem').forEach(n=>n.classList.toggle('active', n.dataset.page===page));
+  document.getElementById('pageTitle').textContent = PAGE_TITLES[page];
+  render();
+}
+function render(){
+  updateTopBudget();
+  const map = {
+    dashboard: renderDashboard, drugs: renderDrugs, doctors: renderDoctors, events: renderEvents,
+    gimmicks: renderGimmicks, market: renderMarket, portfolio: renderPortfolio, settings: renderSettings
+  };
+  (map[STATE.page] || renderDashboard)();
+}
+
+/* =====================================================================
+   GEMINI API CALL
+===================================================================== */
+async function callGemini(system, userMsg, maxTokens){
+  const apiKey = localStorage.getItem('cluster_apiKey');
+  if(!apiKey){ toast('No Gemini API key set — go to Settings.'); throw new Error('no key'); }
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`, {
+    method:'POST',
+    headers:{
+      'content-type':'application/json'
+    },
+    body: JSON.stringify({
+      systemInstruction: {
+        parts: [{ text: system }]
+      },
+      contents: [{
+        parts: [{ text: userMsg }]
+      }],
+      generationConfig: {
+        maxOutputTokens: maxTokens || 2000,
+        responseMimeType: "application/json"
+      }
+    })
+  });
+  if(!res.ok){
+    const errBody = await res.text();
+    throw new Error('Gemini API error ('+res.status+'): '+errBody.slice(0,200));
+  }
+  const data = await res.json();
+  try {
+    return data.candidates[0].content.parts[0].text || '';
+  } catch(e) {
+    return '';
+  }
+}
+function parseJsonLoose(text){
+  let t = text.trim();
+  t = t.replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
+  const first = t.indexOf('{'); const last = t.lastIndexOf('}');
+  if(first>=0 && last>first) t = t.slice(first,last+1);
+  return JSON.parse(t);
+}
+
+/* =====================================================================
+   DASHBOARD
+===================================================================== */
+function renderDashboard(){
+  const drugs = drugsThisYear();
+  const spent = totalSpent();
+  const budget = STATE.budget||0;
+  const pct = budget>0 ? Math.min(100, Math.round(spent/budget*100)) : 0;
+  const progClass = pct>=100?'over':(pct>=80?'warn':'');
+
+  // cluster coverage = visits this month vs target, aggregated
+  const now = new Date();
+  const monthKey = now.getFullYear()+'-'+(now.getMonth()+1);
+  const visitsThisMonth = STATE.visits.filter(v=>{
+    const d = new Date(v.date); return (d.getFullYear()+'-'+(d.getMonth()+1))===monthKey;
+  });
+  const clusterStats = CLUSTERS.map(c=>{
+    const docs = STATE.doctors.filter(d=>d.cluster===c.key);
+    const target = docs.length;
+    const visitedDoctorIds = new Set(visitsThisMonth.filter(v=>docs.some(d=>d.id===v.doctorId)).map(v=>v.doctorId));
+    const pctCov = target>0 ? Math.round(visitedDoctorIds.size/target*100) : 0;
+    return {...c, target, visited:visitedDoctorIds.size, pct:pctCov};
+  });
+
+  const upcoming = eventsThisYear()
+    .filter(e=> new Date(e.date) >= new Date(new Date().toDateString()))
+    .sort((a,b)=> new Date(a.date)-new Date(b.date)).slice(0,5);
+
+  const spendByCluster = {};
+  CLUSTERS.forEach(c=>spendByCluster[c.key]=0);
+  eventsThisYear().forEach(e=> spendByCluster[e.cluster] = (spendByCluster[e.cluster]||0) + (Number(e.cost)||0));
+  gimmicksThisYear().forEach(g=> spendByCluster[g.cluster] = (spendByCluster[g.cluster]||0) + (Number(g.totalCost)||0));
+  const maxSpend = Math.max(1, ...Object.values(spendByCluster));
+
+  document.getElementById('content').innerHTML = `
+    <div class="grid cols-4 mb16">
+      <div class="card kpi">
+        <div class="lbl">Annual budget (${STATE.year})</div>
+        <div class="val">${fmtMoney(budget)}</div>
+        <div class="sub">${drugs.length} drug${drugs.length===1?'':'s'} under management</div>
+      </div>
+      <div class="card kpi">
+        <div class="lbl">Spent so far</div>
+        <div class="val">${fmtMoney(spent)}</div>
+        <div class="progress ${progClass}"><div style="width:${pct}%"></div></div>
+        <div class="sub">${pct}% of budget used</div>
+      </div>
+      <div class="card kpi">
+        <div class="lbl">Budget remaining</div>
+        <div class="val" style="color:${budget-spent<0?'var(--danger)':'var(--ink)'}">${fmtMoney(budget-spent)}</div>
+        <div class="sub">${eventsThisYear().length} events · ${gimmicksThisYear().length} procurement items</div>
+      </div>
+      <div class="card kpi">
+        <div class="lbl">Doctor base</div>
+        <div class="val">${STATE.doctors.length}</div>
+        <div class="sub">${STATE.doctors.filter(d=>d.tier==='A').length} Tier A · tracked across 4 clusters</div>
+      </div>
+    </div>
+
+    <div class="grid cols-2 mb16">
+      <div class="card">
+        <h4>Cluster coverage — this month</h4>
+        <p class="muted" style="font-size:12px; margin:2px 0 14px">Doctors visited at least once ÷ doctors in your master list, per region</p>
+        <div class="clusterbar">
+          ${clusterStats.map(c=>`<div class="seg"><div class="fill" style="height:${c.pct}%; background:${c.hex}"></div><div class="lbl">${c.pct}%</div></div>`).join('')}
+        </div>
+        <div class="clusterlegend">
+          ${clusterStats.map(c=>`<div class="item"><span class="dot" style="background:${c.hex}"></span>${c.label}: ${c.visited}/${c.target}</div>`).join('')}
+        </div>
+      </div>
+      <div class="card">
+        <h4>Spend by cluster (${STATE.year})</h4>
+        <p class="muted" style="font-size:12px; margin:2px 0 14px">Events + gimmicks combined</p>
+        ${CLUSTERS.map(c=>`
+          <div class="flex" style="margin-bottom:10px">
+            <div style="width:90px; font-size:12.5px; font-weight:600">${c.label}</div>
+            <div style="flex:1; background:var(--bg); border-radius:5px; height:10px; overflow:hidden; margin-right:10px">
+              <div style="width:${Math.round((spendByCluster[c.key]||0)/maxSpend*100)}%; height:100%; background:${c.hex}"></div>
+            </div>
+            <div class="mono" style="font-size:12px; width:100px; text-align:right">${fmtMoney(spendByCluster[c.key]||0)}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <div class="grid cols-2">
+      <div class="card">
+        <h4>Upcoming events</h4>
+        ${upcoming.length? `<table style="margin-top:10px"><thead><tr><th>Event</th><th>Drug</th><th>Date</th><th>Cluster</th></tr></thead><tbody>
+          ${upcoming.map(e=>`<tr><td>${escapeHtml(e.name)}</td><td>${escapeHtml(drugName(e.drugId))}</td><td>${fmtDate(e.date)}</td><td><span class="badge ${clusterByKey(e.cluster).badge}">${clusterByKey(e.cluster).label}</span></td></tr>`).join('')}
+        </tbody></table>` : `<div class="empty">No upcoming events scheduled.</div>`}
+      </div>
+      <div class="card">
+        <h4>Drug budget allocation</h4>
+        ${drugs.length? drugs.map(d=>{
+          const plan = planFor(d.id);
+          const planned = plan? plan.totalBudget : 0;
+          const spentD = eventsThisYear().filter(e=>e.drugId===d.id).reduce((s,e)=>s+(Number(e.cost)||0),0)
+                       + gimmicksThisYear().filter(g=>g.drugId===d.id).reduce((s,g)=>s+(Number(g.totalCost)||0),0);
+          const p = planned>0? Math.min(100,Math.round(spentD/planned*100)) : 0;
+          return `<div style="margin-bottom:14px">
+            <div class="flex" style="justify-content:space-between; font-size:13px"><strong>${escapeHtml(d.name)}</strong><span class="mono muted">${fmtMoney(spentD)} / ${fmtMoney(planned)}</span></div>
+            <div class="progress ${p>=100?'over':p>=80?'warn':''}"><div style="width:${p}%"></div></div>
+          </div>`;
+        }).join('') : `<div class="empty">No drugs added yet for ${STATE.year}.<div class="mt8"><button class="btn sm" onclick="goTo('drugs')">Add a drug</button></div></div>`}
+      </div>
+    </div>
+  `;
+}
+
+/* =====================================================================
+   DRUGS & PLANNING WIZARD
+===================================================================== */
+function renderDrugs(){
+  const drugs = drugsThisYear();
+  document.getElementById('content').innerHTML = `
+    <div class="pagehead">
+      <div><p>Add the brands you manage this year, then run the AI planning wizard to turn your budget into a cluster-by-cluster activity plan.</p></div>
+      <button class="btn" onclick="openDrugForm()">+ Add drug</button>
+    </div>
+    <div class="card" style="padding:0">
+      ${drugs.length===0 ? `<div class="empty"><div class="big">No drugs yet for ${STATE.year}</div>Add your first brand to start planning.</div>` : `
+      <table><thead><tr><th>Drug</th><th>Stage</th><th>Plan status</th><th>Planned budget</th><th>Spent</th><th></th></tr></thead><tbody>
+        ${drugs.map(d=>{
+          const plan = planFor(d.id);
+          const spentD = eventsThisYear().filter(e=>e.drugId===d.id).reduce((s,e)=>s+(Number(e.cost)||0),0)
+                       + gimmicksThisYear().filter(g=>g.drugId===d.id).reduce((s,g)=>s+(Number(g.totalCost)||0),0);
+          return `<tr>
+            <td><strong>${escapeHtml(d.name)}</strong></td>
+            <td>${escapeHtml(d.stage||'—')}</td>
+            <td>${plan? `<span class="badge status">Plan ready</span>` : `<span class="badge status" style="color:var(--amber)">No plan yet</span>`}</td>
+            <td class="mono">${plan? fmtMoney(plan.totalBudget) : '—'}</td>
+            <td class="mono">${fmtMoney(spentD)}</td>
+            <td class="tbl-actions">
+              <button class="btn sm secondary" onclick="openWizard('${d.id}')">${plan?'Re-run wizard':'Run wizard'}</button>
+              ${plan?`<button class="btn sm ghost" onclick="viewPlan('${d.id}')">View plan</button>`:''}
+              <button class="btn sm ghost" onclick="openDrugForm('${d.id}')">Edit</button>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody></table>`}
+    </div>
+  `;
+}
+
+function openDrugForm(id){
+  const d = id ? STATE.drugs.find(x=>x.id===id) : null;
+  openModal(d?'Edit drug':'Add drug', `
+    <div class="field"><label>Drug / brand name</label><input type="text" id="fDrugName" value="${d?escapeHtml(d.name):''}" placeholder="e.g. Leqvio (Inclisiran)"></div>
+    <div class="field"><label>Lifecycle stage</label><select id="fDrugStage">${STAGES.map(s=>`<option ${d&&d.stage===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    <div class="field"><label>Notes (optional)</label><textarea id="fDrugNotes" placeholder="Therapeutic area, indication, positioning notes...">${d?escapeHtml(d.notes||''):''}</textarea></div>
+  `, `
+    <button class="btn ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn" onclick="saveDrug('${id||''}')">Save</button>
+  `);
+}
+async function saveDrug(id){
+  const name = document.getElementById('fDrugName').value.trim();
+  if(!name){ toast('Please enter a drug name.'); return; }
+  const payload = { pmId:CURRENT_USER.uid, year:STATE.year, name, stage:document.getElementById('fDrugStage').value, notes:document.getElementById('fDrugNotes').value.trim() };
+  if(id){ await fb.db.collection('drugs').doc(id).update(payload); }
+  else { payload.createdAt=Date.now(); const ref = await fb.db.collection('drugs').add(payload); id=ref.id; }
+  await loadAllData(); closeModal(); toast('Drug saved.'); renderDrugs();
+}
+
+function openWizard(drugId){
+  const d = STATE.drugs.find(x=>x.id===drugId);
+  const existing = planFor(drugId);
+  openModal('Planning wizard — '+d.name, `
+    <p class="muted" style="margin-top:0">Answer these so the AI can propose a cluster-by-cluster plan. You can edit everything afterward.</p>
+    <div class="field"><label>Total budget for this drug this year (EGP)</label><input type="number" id="wBudget" value="${existing?existing.totalBudget:''}" placeholder="e.g. 1500000"></div>
+    <div class="field"><label>Top priority for the year</label><select id="wPriority">${PRIORITIES.map(p=>`<option ${existing&&existing.priority===p?'selected':''}>${p}</option>`).join('')}</select></div>
+    <div class="field"><label>Target doctor count per cluster</label>
+      <div class="field-row">
+        ${CLUSTERS.map(c=>`<div><label style="font-weight:400; font-size:11.5px">${c.label}</label><input type="number" id="wTarget_${c.key}" value="${existing?(existing.clusterTargets&&existing.clusterTargets[c.key]||''):(STATE.doctors.filter(x=>x.cluster===c.key).length||'')}"></div>`).join('')}
+      </div>
+    </div>
+    <div class="field"><label>Competitor activity intensity per cluster</label>
+      <div class="field-row">
+        ${CLUSTERS.map(c=>`<div><label style="font-weight:400; font-size:11.5px">${c.label}</label><select id="wComp_${c.key}">${COMPETITOR_LEVELS.map(l=>`<option ${existing&&existing.competitorLevels&&existing.competitorLevels[c.key]===l?'selected':''}>${l}</option>`).join('')}</select></div>`).join('')}
+      </div>
+    </div>
+    <div class="field"><label>Last year's results / context (optional)</label><textarea id="wContext" placeholder="e.g. Strong uptake in Cairo cardiology, weak coverage in Upper Egypt, congress in Q3 performed well...">${existing?escapeHtml(existing.context||''):''}</textarea></div>
+    <div id="wizardResultBox"></div>
+  `, `
+    <button class="btn ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn accent" id="wizardRunBtn" onclick="runWizard('${drugId}')">Generate plan with AI</button>
+  `, true);
+}
+
+async function runWizard(drugId){
+  const btn = document.getElementById('wizardRunBtn');
+  const budget = Number(document.getElementById('wBudget').value)||0;
+  if(budget<=0){ toast('Enter a budget greater than 0.'); return; }
+  const priority = document.getElementById('wPriority').value;
+  const context = document.getElementById('wContext').value.trim();
+  const targets = {}, comp = {};
+  CLUSTERS.forEach(c=>{ targets[c.key]=Number(document.getElementById('wTarget_'+c.key).value)||0; comp[c.key]=document.getElementById('wComp_'+c.key).value; });
+
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Thinking...';
+  const d = STATE.drugs.find(x=>x.id===drugId);
+  const system = `You are a senior pharmaceutical marketing strategist in Egypt. You design annual activity plans for product managers, allocating a fixed budget across four geographic clusters (Cairo, Alexandria, Delta, Upper Egypt). Always respond with ONLY valid, perfectly formatted JSON. Do not include markdown, backticks, or commentary. Do NOT use unescaped double quotes or raw newlines inside text strings. Match exactly this schema:
+{
+  "rationale": "2-4 sentence strategic summary",
+  "clusters": {
+    "CAIRO": {"budgetPct": number, "activities": [{"type": "string (one of: Round Table, Lecture / CME, Congress / Conference, Webinar, Advisory Board, 1:1 Doctor Visit, Other)", "count": number, "estCostEach": number, "rationale": "short reason"}]},
+    "ALEX": {"budgetPct": number, "activities": []},
+    "DELTA": {"budgetPct": number, "activities": []},
+    "UPPER": {"budgetPct": number, "activities": []}
+  },
+  "quarterlyTimeline": [{"quarter":"Q1","focus":"short text"},{"quarter":"Q2","focus":"text"},{"quarter":"Q3","focus":"text"},{"quarter":"Q4","focus":"text"}]
+}
+budgetPct values across the 4 clusters must sum to 100. Each cluster's activities' (count * estCostEach) should roughly add up to budgetPct% of the total budget. Be realistic about Egyptian pharma field-activity costs in EGP.`;
+  const userMsg = `Drug: ${d.name} (${d.stage||'stage unspecified'})
+Total annual budget: ${budget} EGP
+Top priority: ${priority}
+Target doctor counts per cluster: Cairo ${targets.CAIRO}, Alexandria ${targets.ALEX}, Delta ${targets.DELTA}, Upper Egypt ${targets.UPPER}
+Competitor activity intensity: Cairo ${comp.CAIRO}, Alexandria ${comp.ALEX}, Delta ${comp.DELTA}, Upper Egypt ${comp.UPPER}
+Additional context: ${context || 'none provided'}
+Produce the JSON plan now.`;
+
+  try{
+    const raw = await callGemini(system, userMsg, 4000);
+    const json = parseJsonLoose(raw);
+    window._pendingPlan = { drugId, totalBudget:budget, priority, clusterTargets:targets, competitorLevels:comp, context, ...json };
+    renderPlanPreview(window._pendingPlan, true);
+  }catch(e){
+    console.error(e);
+    document.getElementById('wizardResultBox').innerHTML = `<div class="note">Couldn't generate a plan: ${escapeHtml(e.message)}</div>`;
+  }finally{
+    btn.disabled=false; btn.innerHTML='Generate plan with AI';
+  }
+}
+
+function renderPlanPreview(plan, editable){
+  const box = document.getElementById('wizardResultBox');
+  let html = `<div class="ai-result"><strong>AI rationale:</strong> ${escapeHtml(plan.rationale||'')}</div>`;
+  html += `<div class="grid cols-2 mt16">`;
+  CLUSTERS.forEach(c=>{
+    const cd = (plan.clusters||{})[c.key] || {budgetPct:0, activities:[]};
+    html += `<div class="card" style="box-shadow:none; border-color:var(--border)">
+      <div class="flex" style="justify-content:space-between"><strong><span class="badge ${c.badge}">${c.label}</span></strong><span class="mono">${cd.budgetPct||0}%</span></div>
+      <table style="margin-top:8px"><tbody>
+        ${(cd.activities||[]).map(a=>`<tr><td>${escapeHtml(a.type)}</td><td class="mono right">${a.count}×</td><td class="mono right">${fmtMoney(a.estCostEach)}</td></tr>`).join('') || '<tr><td class="muted">No activities suggested</td></tr>'}
+      </tbody></table>
+    </div>`;
+  });
+  html += `</div>`;
+  if(plan.quarterlyTimeline && plan.quarterlyTimeline.length){
+    html += `<div class="card mt16" style="box-shadow:none; border-color:var(--border)"><h4 style="font-size:13px">Quarterly timeline</h4>
+      ${plan.quarterlyTimeline.map(q=>`<div style="font-size:12.5px; margin-top:6px"><strong>${escapeHtml(q.quarter)}:</strong> ${escapeHtml(q.focus)}</div>`).join('')}
+    </div>`;
+  }
+  box.innerHTML = html;
+  if(editable){
+    document.getElementById('modalFoot').innerHTML = `
+      <button class="btn ghost" onclick="closeModal()">Discard</button>
+      <button class="btn" onclick="savePlan()">Save this plan</button>`;
+  }
+}
+
+async function savePlan(){
+  const plan = window._pendingPlan;
+  if(!plan) return;
+  const id = plan.drugId+'_'+STATE.year;
+  const payload = { ...plan, pmId:CURRENT_USER.uid, year:STATE.year, status:'approved', updatedAt:Date.now() };
+  delete payload.drugId; payload.drugId = plan.drugId;
+  await fb.db.collection('plans').doc(id).set(payload);
+  await loadAllData(); closeModal(); toast('Plan saved.'); renderDrugs();
+}
+
+function viewPlan(drugId){
+  const plan = planFor(drugId);
+  if(!plan) return;
+  const d = STATE.drugs.find(x=>x.id===drugId);
+  openModal('Plan — '+d.name, `<div id="wizardResultBox"></div>`, `
+    <button class="btn ghost" onclick="closeModal()">Close</button>
+    <button class="btn secondary" onclick="openWizard('${drugId}')">Edit inputs / re-run</button>
+  `, true);
+  renderPlanPreview(plan, false);
+}
+
+/* =====================================================================
+   DOCTORS & VISITS
+===================================================================== */
+let doctorsTab = 'list';
+function renderDoctors(){
+  document.getElementById('content').innerHTML = `
+    <div class="tabs">
+      <div class="tab ${doctorsTab==='list'?'active':''}" onclick="doctorsTab='list'; renderDoctors()">Doctor master list</div>
+      <div class="tab ${doctorsTab==='visits'?'active':''}" onclick="doctorsTab='visits'; renderDoctors()">Visit log</div>
+      <div class="tab ${doctorsTab==='coverage'?'active':''}" onclick="doctorsTab='coverage'; renderDoctors()">Monthly coverage</div>
+    </div>
+    <div id="doctorsBody"></div>
+  `;
+  if(doctorsTab==='list') renderDoctorList();
+  else if(doctorsTab==='visits') renderVisitLog();
+  else renderCoverage();
+}
+
+function renderDoctorList(){
+  document.getElementById('doctorsBody').innerHTML = `
+    <div class="pagehead"><p>Your doctor master list — used for visit planning, event attendance and coverage tracking.</p>
+      <button class="btn" onclick="openDoctorForm()">+ Add doctor</button>
+    </div>
+    <div class="card" style="padding:0">
+      ${STATE.doctors.length===0? `<div class="empty"><div class="big">No doctors added yet</div>Add doctors to start tracking coverage.</div>` : `
+      <table><thead><tr><th>Name</th><th>Specialty</th><th>Cluster</th><th>Tier</th><th>Target visits/mo</th><th>Relevant drugs</th><th></th></tr></thead><tbody>
+      ${STATE.doctors.map(doc=>`<tr>
+        <td><strong>${escapeHtml(doc.name)}</strong></td>
+        <td>${escapeHtml(doc.specialty||'—')}</td>
+        <td><span class="badge ${clusterByKey(doc.cluster).badge}">${clusterByKey(doc.cluster).label}</span></td>
+        <td><span class="badge tier${doc.tier}">Tier ${doc.tier}</span></td>
+        <td class="mono">${doc.targetVisitsPerMonth||1}</td>
+        <td>${(doc.drugIds||[]).map(id=>escapeHtml(drugName(id))).join(', ')||'—'}</td>
+        <td class="tbl-actions"><button class="btn sm ghost" onclick="openDoctorForm('${doc.id}')">Edit</button><button class="btn sm danger" onclick="deleteDoc('doctors','${doc.id}',renderDoctors)">Delete</button></td>
+      </tr>`).join('')}
+      </tbody></table>`}
+    </div>
+  `;
+}
+function openDoctorForm(id){
+  const doc = id? STATE.doctors.find(x=>x.id===id):null;
+  openModal(doc?'Edit doctor':'Add doctor', `
+    <div class="field-row two">
+      <div class="field"><label>Full name</label><input type="text" id="fDocName" value="${doc?escapeHtml(doc.name):''}"></div>
+      <div class="field"><label>Specialty</label><input type="text" id="fDocSpec" value="${doc?escapeHtml(doc.specialty||''):''}" placeholder="e.g. Cardiology"></div>
+    </div>
+    <div class="field-row two">
+      <div class="field"><label>Cluster</label><select id="fDocCluster">${clusterOptions(doc?doc.cluster:'')}</select></div>
+      <div class="field"><label>Tier</label><select id="fDocTier">${TIERS.map(t=>`<option ${doc&&doc.tier===t?'selected':''}>${t}</option>`).join('')}</select></div>
+    </div>
+    <div class="field"><label>Target visits per month</label><input type="number" id="fDocTarget" value="${doc?doc.targetVisitsPerMonth:1}" min="0"></div>
+    <div class="field"><label>Relevant drugs</label>
+      <select id="fDocDrugs" multiple style="min-height:80px">${drugsThisYear().map(d=>`<option value="${d.id}" ${doc&&(doc.drugIds||[]).includes(d.id)?'selected':''}>${escapeHtml(d.name)}</option>`).join('')||'<option disabled>Add a drug first</option>'}</select>
+      <div class="hint">Hold Ctrl/Cmd to select multiple</div>
+    </div>
+  `, `<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveDoctor('${id||''}')">Save</button>`);
+}
+async function saveDoctor(id){
+  const name = document.getElementById('fDocName').value.trim();
+  if(!name){ toast('Enter a name.'); return; }
+  const drugIds = Array.from(document.getElementById('fDocDrugs').selectedOptions).map(o=>o.value);
+  const payload = {
+    pmId:CURRENT_USER.uid, name, specialty:document.getElementById('fDocSpec').value.trim(),
+    cluster:document.getElementById('fDocCluster').value, tier:document.getElementById('fDocTier').value,
+    targetVisitsPerMonth:Number(document.getElementById('fDocTarget').value)||1, drugIds
+  };
+  if(id){ await fb.db.collection('doctors').doc(id).update(payload); }
+  else { payload.createdAt=Date.now(); await fb.db.collection('doctors').add(payload); }
+  await loadAllData(); closeModal(); toast('Doctor saved.'); renderDoctors();
+}
+async function deleteDoc(col,id,cb){
+  if(!confirm('Delete this record? This cannot be undone.')) return;
+  await fb.db.collection(col).doc(id).delete();
+  await loadAllData(); toast('Deleted.'); cb();
+}
+
+function renderVisitLog(){
+  const visits = [...STATE.visits].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  document.getElementById('doctorsBody').innerHTML = `
+    <div class="pagehead"><p>Log every doctor visit — this drives the coverage view and your monthly call plan.</p>
+      <button class="btn" onclick="openVisitForm()">+ Log visit</button>
+    </div>
+    <div class="card" style="padding:0">
+      ${visits.length===0? `<div class="empty">No visits logged yet.</div>` : `
+      <table><thead><tr><th>Date</th><th>Doctor</th><th>Drug</th><th>Cluster</th><th>Notes</th><th></th></tr></thead><tbody>
+      ${visits.map(v=>{ const doc = STATE.doctors.find(d=>d.id===v.doctorId); return `<tr>
+        <td>${fmtDate(v.date)}</td><td>${escapeHtml(v.doctorName||(doc?doc.name:'—'))}</td><td>${escapeHtml(drugName(v.drugId))}</td>
+        <td>${doc?`<span class="badge ${clusterByKey(doc.cluster).badge}">${clusterByKey(doc.cluster).label}</span>`:'—'}</td>
+        <td style="max-width:260px">${escapeHtml(v.notes||'')}</td>
+        <td class="tbl-actions"><button class="btn sm danger" onclick="deleteDoc('visits','${v.id}',renderDoctors)">Delete</button></td>
+      </tr>`;}).join('')}
+      </tbody></table>`}
+    </div>
+  `;
+}
+function openVisitForm(){
+  if(STATE.doctors.length===0){ toast('Add doctors first.'); return; }
+  openModal('Log a visit', `
+    <div class="field-row two">
+      <div class="field"><label>Doctor</label><select id="fVisitDoc">${STATE.doctors.map(d=>`<option value="${d.id}">${escapeHtml(d.name)}</option>`).join('')}</select></div>
+      <div class="field"><label>Drug discussed</label><select id="fVisitDrug">${drugOptions()}</select></div>
+    </div>
+    <div class="field"><label>Date</label><input type="date" id="fVisitDate" value="${new Date().toISOString().slice(0,10)}"></div>
+    <div class="field"><label>Notes</label><textarea id="fVisitNotes" placeholder="Discussion points, samples left, follow-up..."></textarea></div>
+  `, `<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveVisit()">Save visit</button>`);
+}
+async function saveVisit(){
+  const doctorId = document.getElementById('fVisitDoc').value;
+  const doc = STATE.doctors.find(d=>d.id===doctorId);
+  const payload = {
+    pmId:CURRENT_USER.uid, doctorId, doctorName:doc?doc.name:'', drugId:document.getElementById('fVisitDrug').value,
+    drugName:drugName(document.getElementById('fVisitDrug').value), date:document.getElementById('fVisitDate').value,
+    notes:document.getElementById('fVisitNotes').value.trim(), createdAt:Date.now()
+  };
+  await fb.db.collection('visits').add(payload);
+  await loadAllData(); closeModal(); toast('Visit logged.'); renderDoctors();
+}
+
+function renderCoverage(){
+  const months = [];
+  for(let m=0;m<12;m++){ months.push(m); }
+  const monthSel = document.getElementById('covMonth');
+  const selectedMonth = monthSel ? Number(monthSel.value) : new Date().getMonth();
+
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const visitsInMonth = STATE.visits.filter(v=>{
+    const d = new Date(v.date); return d.getFullYear()===STATE.year && d.getMonth()===selectedMonth;
+  });
+  const rows = CLUSTERS.map(c=>{
+    const docs = STATE.doctors.filter(d=>d.cluster===c.key);
+    const visitedIds = new Set(visitsInMonth.filter(v=>docs.some(d=>d.id===v.doctorId)).map(v=>v.doctorId));
+    const underA = docs.filter(d=>d.tier==='A' && !visitedIds.has(d.id));
+    return {c, total:docs.length, visited:visitedIds.size, underA};
+  });
+  document.getElementById('doctorsBody').innerHTML = `
+    <div class="pagehead">
+      <p>Doctors visited at least once in the selected month vs. your master list, per cluster. Tier A gaps are flagged.</p>
+      <select id="covMonth" onchange="renderCoverage()">${monthNames.map((mn,i)=>`<option value="${i}" ${i===selectedMonth?'selected':''}>${mn} ${STATE.year}</option>`).join('')}</select>
+    </div>
+    <div class="grid cols-4 mb16">
+      ${rows.map(r=>{ const pct = r.total? Math.round(r.visited/r.total*100):0; return `
+      <div class="card kpi">
+        <div class="lbl">${r.c.label}</div>
+        <div class="val" style="color:${r.c.hex}">${pct}%</div>
+        <div class="progress"><div style="width:${pct}%; background:${r.c.hex}"></div></div>
+        <div class="sub">${r.visited} / ${r.total} doctors visited</div>
+      </div>`;}).join('')}
+    </div>
+    <div class="card">
+      <h4>Tier A doctors not yet visited this month</h4>
+      ${rows.every(r=>r.underA.length===0) ? `<div class="empty">All Tier A doctors covered this month — nice work.</div>` :
+        `<table><thead><tr><th>Doctor</th><th>Cluster</th><th>Specialty</th></tr></thead><tbody>
+        ${rows.flatMap(r=>r.underA.map(d=>`<tr><td><strong>${escapeHtml(d.name)}</strong></td><td><span class="badge ${r.c.badge}">${r.c.label}</span></td><td>${escapeHtml(d.specialty||'—')}</td></tr>`)).join('')}
+        </tbody></table>`}
+    </div>
+  `;
+}
+
+/* =====================================================================
+   EVENTS
+===================================================================== */
+function renderEvents(){
+  let evs = eventsThisYear().sort((a,b)=>new Date(b.date)-new Date(a.date));
+  document.getElementById('content').innerHTML = `
+    <div class="pagehead"><p>Log every activity with its cost and doctor reach by region. Totals roll up into your dashboard and portfolio.</p>
+      <button class="btn" onclick="openEventForm()">+ Add event</button>
+    </div>
+    <div class="card" style="padding:0">
+      ${evs.length===0? `<div class="empty"><div class="big">No events logged for ${STATE.year}</div></div>` : `
+      <table><thead><tr><th>Event</th><th>Drug</th><th>Type</th><th>Date</th><th>Cluster</th><th>Doctors</th><th>Cost</th><th></th></tr></thead><tbody>
+      ${evs.map(e=>`<tr>
+        <td><strong>${escapeHtml(e.name)}</strong></td>
+        <td>${escapeHtml(drugName(e.drugId))}</td>
+        <td>${escapeHtml(e.type)}</td>
+        <td>${fmtDate(e.date)}</td>
+        <td><span class="badge ${clusterByKey(e.cluster).badge}">${clusterByKey(e.cluster).label}</span></td>
+        <td class="mono">${e.totalDoctors||0}</td>
+        <td class="mono">${fmtMoney(e.cost)}</td>
+        <td class="tbl-actions"><button class="btn sm ghost" onclick="openEventForm('${e.id}')">Edit</button><button class="btn sm danger" onclick="deleteDoc('events','${e.id}',renderEvents)">Delete</button></td>
+      </tr>`).join('')}
+      </tbody></table>`}
+    </div>
+  `;
+}
+function openEventForm(id){
+  const e = id? STATE.events.find(x=>x.id===id):null;
+  openModal(e?'Edit event':'Add event', `
+    <div class="field-row two">
+      <div class="field"><label>Event name</label><input type="text" id="fEvName" value="${e?escapeHtml(e.name):''}" placeholder="e.g. Cairo Cardiology Round Table"></div>
+      <div class="field"><label>Drug</label><select id="fEvDrug">${drugOptions(e?e.drugId:'')}</select></div>
+    </div>
+    <div class="field-row two">
+      <div class="field"><label>Type</label><select id="fEvType">${EVENT_TYPES.map(t=>`<option ${e&&e.type===t?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="field"><label>Primary cluster</label><select id="fEvCluster">${clusterOptions(e?e.cluster:'')}</select></div>
+    </div>
+    <div class="field-row two">
+      <div class="field"><label>Date</label><input type="date" id="fEvDate" value="${e?e.date:new Date().toISOString().slice(0,10)}"></div>
+      <div class="field"><label>Total cost (EGP)</label><input type="number" id="fEvCost" value="${e?e.cost:''}"></div>
+    </div>
+    <div class="field"><label>Number of doctors attending, by region</label>
+      <div class="field-row">
+        ${CLUSTERS.map(c=>`<div><label style="font-weight:400; font-size:11.5px">${c.label}</label><input type="number" min="0" id="fEvDoc_${c.key}" value="${e?(e.doctorsByCluster&&e.doctorsByCluster[c.key]||0):0}"></div>`).join('')}
+      </div>
+    </div>
+    <div class="field"><label>Doctor names</label><textarea id="fEvNames" placeholder="One name per line or comma-separated">${e?escapeHtml(e.doctorNames||''):''}</textarea></div>
+  `, `<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveEvent('${id||''}')">Save</button>`, true);
+}
+async function saveEvent(id){
+  const name = document.getElementById('fEvName').value.trim();
+  const drugId = document.getElementById('fEvDrug').value;
+  if(!name || !drugId){ toast('Enter an event name and select a drug.'); return; }
+  const doctorsByCluster = {};
+  let total = 0;
+  CLUSTERS.forEach(c=>{ const v = Number(document.getElementById('fEvDoc_'+c.key).value)||0; doctorsByCluster[c.key]=v; total+=v; });
+  const payload = {
+    pmId:CURRENT_USER.uid, year:STATE.year, drugId, drugName:drugName(drugId),
+    name, type:document.getElementById('fEvType').value, cluster:document.getElementById('fEvCluster').value,
+    date:document.getElementById('fEvDate').value, cost:Number(document.getElementById('fEvCost').value)||0,
+    doctorsByCluster, totalDoctors:total, doctorNames:document.getElementById('fEvNames').value.trim()
+  };
+  if(id){ await fb.db.collection('events').doc(id).update(payload); }
+  else { payload.createdAt=Date.now(); await fb.db.collection('events').add(payload); }
+  await loadAllData(); closeModal(); toast('Event saved.'); renderEvents();
+}
+
+/* =====================================================================
+   GIMMICKS & PROCUREMENT
+===================================================================== */
+function renderGimmicks(){
+  let gs = gimmicksThisYear().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  document.getElementById('content').innerHTML = `
+    <div class="aibox">
+      <h4>Gimmick & material ideas</h4>
+      <p>Tell the AI about the brand and budget left, and it will suggest promotional materials worth producing — with rationale and a rough cost range.</p>
+      <button class="btn" style="background:#fff; color:var(--primary)" onclick="openGimmickIdeaForm()">Get AI ideas</button>
+    </div>
+    <div class="pagehead"><p>Once you've decided, log the procurement details here — saved to this drug's yearly portfolio.</p>
+      <button class="btn secondary" onclick="openGimmickForm()">+ Add procurement item</button>
+    </div>
+    <div class="card" style="padding:0">
+      ${gs.length===0? `<div class="empty">No procurement items logged for ${STATE.year}.</div>` : `
+      <table><thead><tr><th>Item</th><th>Drug</th><th>Cluster</th><th>Qty</th><th>Unit cost</th><th>Total</th><th>Supplier</th><th></th></tr></thead><tbody>
+      ${gs.map(g=>`<tr>
+        <td><strong>${escapeHtml(g.item)}</strong></td><td>${escapeHtml(drugName(g.drugId))}</td>
+        <td><span class="badge ${clusterByKey(g.cluster).badge}">${clusterByKey(g.cluster).label}</span></td>
+        <td class="mono">${g.qty}</td><td class="mono">${fmtMoney(g.unitCost)}</td><td class="mono">${fmtMoney(g.totalCost)}</td>
+        <td>${escapeHtml(g.supplier||'—')}</td>
+        <td class="tbl-actions"><button class="btn sm ghost" onclick="openGimmickForm('${g.id}')">Edit</button><button class="btn sm danger" onclick="deleteDoc('gimmicks','${g.id}',renderGimmicks)">Delete</button></td>
+      </tr>`).join('')}
+      </tbody></table>`}
+    </div>
+  `;
+}
+function openGimmickIdeaForm(){
+  openModal('AI gimmick ideas', `
+    <div class="field-row two">
+      <div class="field"><label>Drug</label><select id="gDrug">${drugOptions()}</select></div>
+      <div class="field"><label>Budget left for materials (EGP)</label><input type="number" id="gBudget" placeholder="e.g. 150000"></div>
+    </div>
+    <div class="field"><label>Target audience</label><input type="text" id="gAudience" placeholder="e.g. Cardiologists, hospital pharmacists"></div>
+    <div class="field"><label>Brand message / positioning</label><textarea id="gMessage" placeholder="What should the materials reinforce?"></textarea></div>
+    <div class="field"><label>Materials used last year, to avoid repeating (optional)</label><textarea id="gPrior" placeholder="e.g. branded notepads, USB drives..."></textarea></div>
+    <div id="gimmickResultBox"></div>
+  `, `<button class="btn ghost" onclick="closeModal()">Close</button><button class="btn accent" id="gimmickRunBtn" onclick="runGimmickIdeas()">Generate ideas</button>`, true);
+}
+async function runGimmickIdeas(){
+  const btn = document.getElementById('gimmickRunBtn');
+  const drugId = document.getElementById('gDrug').value;
+  if(!drugId){ toast('Select a drug.'); return; }
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span> Thinking...';
+  const system = `You are a pharmaceutical promotional-materials strategist working under standard pharma marketing compliance. You must respond with ONLY valid, perfectly formatted JSON. Do not include markdown, backticks, or conversational text. Do NOT use unescaped double quotes inside your text strings. Your response must exactly match this structure: {"ideas":[{"idea":"name","rationale":"why it fits","estCostRangeEGP":"e.g. 20,000 - 40,000","complianceNote":"short note"}]}`;
+  const userMsg = `Drug: ${drugName(drugId)}
+Budget available: ${document.getElementById('gBudget').value || 'not specified'} EGP
+Target audience: ${document.getElementById('gAudience').value || 'not specified'}
+Brand message: ${document.getElementById('gMessage').value || 'not specified'}
+Materials already used (avoid repeating): ${document.getElementById('gPrior').value || 'none specified'}`;
+  try{
+    const raw = await callGemini(system, userMsg, 4000);
+    const json = parseJsonLoose(raw);
+    document.getElementById('gimmickResultBox').innerHTML = `<div class="ai-result">${
+      (json.ideas||[]).map(i=>`<div style="margin-bottom:12px"><strong>${escapeHtml(i.idea)}</strong><br><span class="muted">${escapeHtml(i.rationale)}</span><br><span class="mono" style="font-size:12px">${escapeHtml(i.estCostRangeEGP||'')}</span><br><span style="font-size:11.5px; color:var(--amber)">${escapeHtml(i.complianceNote||'')}</span></div>`).join('')
+    }</div><button class="btn sm secondary mt8" onclick="closeModal(); openGimmickForm()">Log a procurement item ›</button>`;
+  }catch(e){ document.getElementById('gimmickResultBox').innerHTML = `<div class="note">Couldn't get ideas: ${escapeHtml(e.message)}</div>`; }
+  finally{ btn.disabled=false; btn.innerHTML='Generate ideas'; }
+}
+function openGimmickForm(id){
+  const g = id? STATE.gimmicks.find(x=>x.id===id):null;
+  openModal(g?'Edit procurement item':'Add procurement item', `
+    <div class="field-row two">
+      <div class="field"><label>Item</label><input type="text" id="fGItem" value="${g?escapeHtml(g.item):''}" placeholder="e.g. Branded clinical notepads"></div>
+      <div class="field"><label>Drug</label><select id="fGDrug">${drugOptions(g?g.drugId:'')}</select></div>
+    </div>
+    <div class="field-row two">
+      <div class="field"><label>Cluster / distribution focus</label><select id="fGCluster">${clusterOptions(g?g.cluster:'')}</select></div>
+      <div class="field"><label>Supplier</label><input type="text" id="fGSupplier" value="${g?escapeHtml(g.supplier||''):''}"></div>
+    </div>
+    <div class="field-row two">
+      <div class="field"><label>Quantity</label><input type="number" id="fGQty" value="${g?g.qty:''}" oninput="updateGimmickTotal()"></div>
+      <div class="field"><label>Unit cost (EGP)</label><input type="number" id="fGUnit" value="${g?g.unitCost:''}" oninput="updateGimmickTotal()"></div>
+    </div>
+    <div class="field"><label>Total cost (EGP)</label><input type="number" id="fGTotal" value="${g?g.totalCost:0}" readonly style="background:var(--bg)"></div>
+    <div class="field-row two">
+      <div class="field"><label>Production deadline</label><input type="date" id="fGDeadline" value="${g?g.deadline||'':''}"></div>
+      <div class="field"><label>Distribution plan</label><input type="text" id="fGDist" value="${g?escapeHtml(g.distributionPlan||''):''}" placeholder="e.g. via reps in Q2"></div>
+    </div>
+  `, `<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveGimmick('${id||''}')">Save</button>`, true);
+}
+function updateGimmickTotal(){
+  const q = Number(document.getElementById('fGQty').value)||0;
+  const u = Number(document.getElementById('fGUnit').value)||0;
+  document.getElementById('fGTotal').value = q*u;
+}
+async function saveGimmick(id){
+  const item = document.getElementById('fGItem').value.trim();
+  const drugId = document.getElementById('fGDrug').value;
+  if(!item || !drugId){ toast('Enter an item name and select a drug.'); return; }
+  const payload = {
+    pmId:CURRENT_USER.uid, year:STATE.year, drugId, drugName:drugName(drugId), item,
+    cluster:document.getElementById('fGCluster').value, supplier:document.getElementById('fGSupplier').value.trim(),
+    qty:Number(document.getElementById('fGQty').value)||0, unitCost:Number(document.getElementById('fGUnit').value)||0,
+    totalCost:Number(document.getElementById('fGTotal').value)||0, deadline:document.getElementById('fGDeadline').value,
+    distributionPlan:document.getElementById('fGDist').value.trim()
+  };
+  if(id){ await fb.db.collection('gimmicks').doc(id).update(payload); }
+  else { payload.createdAt=Date.now(); await fb.db.collection('gimmicks').add(payload); }
+  await loadAllData(); closeModal(); toast('Procurement item saved.'); renderGimmicks();
+}
+
+/* =====================================================================
+   MARKET ANALYSIS
+===================================================================== */
+let uploadedRows = null, uploadedFileName = '';
+function renderMarket(){
+  const analyses = marketsThisYear().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  document.getElementById('content').innerHTML = `
+    <div class="card mb16">
+      <h4>Upload competitor data</h4>
+      <p class="muted" style="font-size:12.5px; margin:2px 0 14px">Upload an Excel file with competitor / market data for a drug. The AI will read it and produce a market analysis and forecast.</p>
+      <div class="field-row two">
+        <div class="field"><label>Drug</label><select id="mDrug">${drugOptions()}</select></div>
+        <div class="field"><label>Excel file</label><input type="file" id="mFile" accept=".xlsx,.xls,.csv" onchange="handleMarketFile(event)"></div>
+      </div>
+      <div id="mPreview"></div>
+      <button class="btn accent mt8" id="mRunBtn" onclick="runMarketAnalysis()" disabled>Analyze with AI</button>
+      <div id="mResult"></div>
+    </div>
+    <div class="card" style="padding:0">
+      <div style="padding:16px 18px 0"><h4>Past analyses</h4></div>
+      ${analyses.length===0? `<div class="empty">No market analyses yet for ${STATE.year}.</div>` : `
+      <table><thead><tr><th>Drug</th><th>File</th><th>Rows</th><th>Date</th><th></th></tr></thead><tbody>
+      ${analyses.map(a=>`<tr><td>${escapeHtml(drugName(a.drugId))}</td><td>${escapeHtml(a.fileName)}</td><td class="mono">${a.rowCount}</td><td>${fmtDate(new Date(a.createdAt))}</td>
+      <td class="tbl-actions"><button class="btn sm ghost" onclick="viewMarketAnalysis('${a.id}')">View</button></td></tr>`).join('')}
+      </tbody></table>`}
+    </div>
+  `;
+}
+function handleMarketFile(ev){
+  const file = ev.target.files[0];
+  if(!file) return;
+  uploadedFileName = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const data = new Uint8Array(e.target.result);
+    const wb = XLSX.read(data, {type:'array'});
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    uploadedRows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+    const cols = uploadedRows.length ? Object.keys(uploadedRows[0]) : [];
+    document.getElementById('mPreview').innerHTML = `
+      <div class="note mt8">Loaded <strong>${uploadedRows.length}</strong> rows, columns: ${cols.map(c=>escapeHtml(c)).join(', ')}</div>
+      <table style="margin-top:8px"><thead><tr>${cols.map(c=>`<th>${escapeHtml(c)}</th>`).join('')}</tr></thead><tbody>
+      ${uploadedRows.slice(0,5).map(r=>`<tr>${cols.map(c=>`<td>${escapeHtml(String(r[c]))}</td>`).join('')}</tr>`).join('')}
+      </tbody></table>`;
+    document.getElementById('mRunBtn').disabled = false;
+  };
+  reader.readAsArrayBuffer(file);
+}
+async function runMarketAnalysis(){
+  const drugId = document.getElementById('mDrug').value;
+  if(!drugId || !uploadedRows){ toast('Select a drug and upload a file.'); return; }
+  const btn = document.getElementById('mRunBtn');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span> Analyzing...';
+  const sample = uploadedRows.slice(0,80);
+  const system = `You are a pharmaceutical market analyst covering the Egyptian market. You will receive a sample of rows from a competitor/market Excel file. Produce ONLY valid, perfectly formatted JSON. Do NOT use unescaped double quotes or raw newlines inside your text strings. Use standard spacing. Your response must exactly match this schema: {"summary": "3-5 sentence summary", "competitiveGaps": "2-4 sentences on gaps", "forecast": "3-5 sentence forecast", "recommendedClusterPriority": ["CAIRO", "ALEX", "DELTA", "UPPER"]}`;
+  const userMsg = `Drug being analyzed: ${drugName(drugId)}
+File: ${uploadedFileName}, total rows: ${uploadedRows.length} (showing sample of ${sample.length})
+Data sample (JSON):
+${JSON.stringify(sample)}`;
+  try{
+    const raw = await callGemini(system, userMsg, 2000);
+    const json = parseJsonLoose(raw);
+    const payload = {
+      pmId:CURRENT_USER.uid, year:STATE.year, drugId, drugName:drugName(drugId), fileName:uploadedFileName,
+      rowCount:uploadedRows.length, summaryText:json.summary, gapsText:json.competitiveGaps,
+      forecastText:json.forecast, recommendedClusterPriority:json.recommendedClusterPriority||[], createdAt:Date.now()
+    };
+    await fb.db.collection('marketAnalyses').add(payload);
+    await loadAllData();
+    renderMarketResult(payload);
+    toast('Analysis saved.');
+  }catch(e){ document.getElementById('mResult').innerHTML = `<div class="note">Couldn't analyze: ${escapeHtml(e.message)}</div>`; }
+  finally{ btn.disabled=false; btn.innerHTML='Analyze with AI'; }
+}
+function renderMarketResult(a){
+  document.getElementById('mResult').innerHTML = `
+    <div class="ai-result">
+      <strong>Summary</strong><br>${escapeHtml(a.summaryText)}<br><br>
+      <strong>Competitive gaps</strong><br>${escapeHtml(a.gapsText)}<br><br>
+      <strong>Forecast</strong><br>${escapeHtml(a.forecastText)}<br><br>
+      <strong>Recommended cluster priority</strong><br>${(a.recommendedClusterPriority||[]).map(k=>clusterByKey(k).label).join(' → ')}
+    </div>`;
+}
+function viewMarketAnalysis(id){
+  const a = STATE.markets.find(x=>x.id===id);
+  if(!a) return;
+  openModal('Market analysis — '+drugName(a.drugId), '', `<button class="btn ghost" onclick="closeModal()">Close</button>`, true);
+  document.getElementById('modalBody').innerHTML = `
+    <div class="ai-result">
+      <strong>Summary</strong><br>${escapeHtml(a.summaryText)}<br><br>
+      <strong>Competitive gaps</strong><br>${escapeHtml(a.gapsText)}<br><br>
+      <strong>Forecast</strong><br>${escapeHtml(a.forecastText)}<br><br>
+      <strong>Recommended cluster priority</strong><br>${(a.recommendedClusterPriority||[]).map(k=>clusterByKey(k).label).join(' → ')}
+    </div>`;
+}
+
+/* =====================================================================
+   PORTFOLIO ARCHIVE
+===================================================================== */
+function renderPortfolio(){
+  const drugs = drugsThisYear();
+  document.getElementById('content').innerHTML = `
+    <div class="pagehead"><p>The full record for a drug's year — plan, events, procurement and market analysis in one place.</p>
+      <select id="pfDrug" onchange="renderPortfolioFor()">${drugs.length? drugs.map(d=>`<option value="${d.id}">${escapeHtml(d.name)}</option>`).join(''):'<option>No drugs yet</option>'}</select>
+    </div>
+    <div id="pfBody"></div>
+  `;
+  if(drugs.length) renderPortfolioFor();
+}
+function renderPortfolioFor(){
+  const drugId = document.getElementById('pfDrug').value;
+  const d = STATE.drugs.find(x=>x.id===drugId);
+  if(!d){ document.getElementById('pfBody').innerHTML = `<div class="empty">Add a drug first.</div>`; return; }
+  const plan = planFor(drugId);
+  const evs = eventsThisYear().filter(e=>e.drugId===drugId);
+  const gms = gimmicksThisYear().filter(g=>g.drugId===drugId);
+  const markets = marketsThisYear().filter(m=>m.drugId===drugId);
+  const totalSpend = evs.reduce((s,e)=>s+(Number(e.cost)||0),0) + gms.reduce((s,g)=>s+(Number(g.totalCost)||0),0);
+  const totalDoctorsReached = evs.reduce((s,e)=>s+(Number(e.totalDoctors)||0),0);
+
+  document.getElementById('pfBody').innerHTML = `
+    <div class="grid cols-4 mb16">
+      <div class="card kpi"><div class="lbl">Planned budget</div><div class="val">${fmtMoney(plan?plan.totalBudget:0)}</div></div>
+      <div class="card kpi"><div class="lbl">Actual spend</div><div class="val">${fmtMoney(totalSpend)}</div></div>
+      <div class="card kpi"><div class="lbl">Events held</div><div class="val">${evs.length}</div></div>
+      <div class="card kpi"><div class="lbl">Doctor touchpoints</div><div class="val">${totalDoctorsReached}</div></div>
+    </div>
+    <div class="card mb16">
+      <h4>Annual plan</h4>
+      ${plan? `<p class="muted" style="font-size:12.5px">${escapeHtml(plan.rationale||'')}</p>` : `<div class="empty">No AI plan saved for this drug yet.</div>`}
+    </div>
+    <div class="grid cols-2 mb16">
+      <div class="card">
+        <h4>Events (${evs.length})</h4>
+        ${evs.length? `<table><thead><tr><th>Name</th><th>Date</th><th>Cluster</th><th>Cost</th></tr></thead><tbody>
+        ${evs.map(e=>`<tr><td>${escapeHtml(e.name)}</td><td>${fmtDate(e.date)}</td><td><span class="badge ${clusterByKey(e.cluster).badge}">${clusterByKey(e.cluster).label}</span></td><td class="mono">${fmtMoney(e.cost)}</td></tr>`).join('')}
+        </tbody></table>` : `<div class="empty">None logged.</div>`}
+      </div>
+      <div class="card">
+        <h4>Gimmicks &amp; procurement (${gms.length})</h4>
+        ${gms.length? `<table><thead><tr><th>Item</th><th>Qty</th><th>Total</th></tr></thead><tbody>
+        ${gms.map(g=>`<tr><td>${escapeHtml(g.item)}</td><td class="mono">${g.qty}</td><td class="mono">${fmtMoney(g.totalCost)}</td></tr>`).join('')}
+        </tbody></table>` : `<div class="empty">None logged.</div>`}
+      </div>
+    </div>
+    <div class="card">
+      <h4>Market analyses (${markets.length})</h4>
+      ${markets.length? markets.map(a=>`<div style="margin-bottom:10px"><strong>${escapeHtml(a.fileName)}</strong> — <span class="muted">${escapeHtml((a.summaryText||'').slice(0,160))}...</span> <a style="cursor:pointer" onclick="viewMarketAnalysis('${a.id}')">view</a></div>`).join('') : `<div class="empty">None yet.</div>`}
+    </div>
+    <div class="mt16" style="text-align:right"><button class="btn secondary" onclick="window.print()">Print / save as PDF</button></div>
+  `;
+}
+
+/* =====================================================================
+   SETTINGS
+===================================================================== */
+function renderSettings(){
+  document.getElementById('content').innerHTML = `
+    <div class="grid cols-2">
+      <div class="card">
+        <h4>Annual budget</h4>
+        <p class="muted" style="font-size:12.5px">Your total budget for ${STATE.year}, covering all drugs you manage.</p>
+        <div class="field mt16"><label>Total budget (EGP)</label><input type="number" id="sBudget" value="${STATE.budget||''}"></div>
+        <button class="btn" onclick="saveBudget()">Save budget</button>
+      </div>
+      <div class="card">
+        <h4>Profile</h4>
+        <div class="field"><label>Name</label><input type="text" id="sName" value="${escapeHtml(CURRENT_USER.name)}"></div>
+        <button class="btn secondary" onclick="saveProfile()">Save name</button>
+      </div>
+      <div class="card">
+        <h4>Gemini API key</h4>
+        <p class="muted" style="font-size:12.5px">Used for the planning wizard, gimmick ideas and market analysis. Stored only in this browser.</p>
+        <div class="field mt16"><input type="password" id="sApiKey" value="${localStorage.getItem('cluster_apiKey')||''}"></div>
+        <button class="btn secondary" onclick="saveApiKey()">Update key</button>
+      </div>
+      <div class="card">
+        <h4>Firebase config</h4>
+        <p class="muted" style="font-size:12.5px">Shared across the team — every PM should use the same project config.</p>
+        <button class="btn ghost mt16" onclick="backToSetupFromApp()">View / edit Firebase config</button>
+      </div>
+    </div>
+  `;
+}
+async function saveBudget(){
+  const v = Number(document.getElementById('sBudget').value)||0;
+  await fb.db.collection('pmBudgets').doc(CURRENT_USER.uid+'_'+STATE.year).set({pmId:CURRENT_USER.uid, year:STATE.year, totalBudget:v});
+  STATE.budget = v; updateTopBudget(); toast('Budget saved.');
+}
+async function saveProfile(){
+  const name = document.getElementById('sName').value.trim();
+  await fb.db.collection('pms').doc(CURRENT_USER.uid).update({name});
+  CURRENT_USER.name = name; document.getElementById('sbPmName').textContent = name; toast('Profile updated.');
+}
+function saveApiKey(){
+  localStorage.setItem('cluster_apiKey', document.getElementById('sApiKey').value.trim());
+  toast('API key updated.');
+}
+function backToSetupFromApp(){
+  fb.auth.signOut().then(backToSetup);
+}
+</script>
+</body>
+</html>
